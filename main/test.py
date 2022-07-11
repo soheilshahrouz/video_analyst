@@ -13,6 +13,7 @@ from videoanalyst.engine.builder import build as tester_builder
 from videoanalyst.model import builder as model_builder
 from videoanalyst.pipeline import builder as pipeline_builder
 
+from videoanalyst.model.task_model.taskmodel_impl.siamese_track import SiamFCppTemplateMaker, SiamFCppForward
 
 def make_parser():
     parser = argparse.ArgumentParser(description='Test')
@@ -28,6 +29,30 @@ def make_parser():
 def build_siamfcpp_tester(task_cfg):
     # build model
     model = model_builder.build("track", task_cfg.model)
+
+    temp_model = SiamFCppTemplateMaker(model).cuda().eval()
+
+    dummy_input = torch.randn(1, 3, 127, 127, device="cuda")
+    input_names  = [ "template_maker_input" ]
+    output_names = [ "template_maker_kernel_output", "template_maker_reg_output", "template_maker_cls_output" ]
+
+    torch.onnx.export(temp_model, dummy_input, "SiamFCpp_Template_Maker.onnx", export_params=True,
+        verbose=True, input_names=input_names, output_names=output_names)
+
+
+    
+
+    dummy_input = torch.randn(1, 3, 303, 303, device="cuda")
+    simp_forw_model = SiamFCppForward(model).cuda()
+
+    input_names  = [ "forward_input" ]
+    output_names = [ "forward_delta0_output", "forward_delta1_output", "forward_delta2_output", "forward_delta3_output", "forward_cls_output" ]
+
+    torch.onnx.export(simp_forw_model, dummy_input, "SiamFCpp_Forward.onnx", export_params=True,
+        verbose=True, input_names=input_names, output_names=output_names)
+
+
+    exit()
     # build pipeline
     pipeline = pipeline_builder.build("track", task_cfg.pipeline, model)
     # build tester

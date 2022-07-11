@@ -3,6 +3,7 @@
 from loguru import logger
 
 import torch
+import torch.nn as nn
 
 from videoanalyst.model.common_opr.common_block import (conv_bn_relu,
                                                         xcorr_depthwise)
@@ -247,3 +248,70 @@ class SiamTrack(ModuleBase):
         if self.loss is not None:
             for loss_name in self.loss:
                 self.loss[loss_name].to(dev)
+
+
+class SiamFCppTemplateMaker(nn.Module):
+    def __init__(self, model):
+        super(SiamFCppTemplateMaker, self).__init__()
+
+        # build backbone
+        self.basemodel = model.basemodel
+
+        self.c_z_k = model.c_z_k
+        self.r_z_k = model.r_z_k
+
+
+    def forward(self, x):
+
+        f_z = self.basemodel(x)
+        # template as kernel
+        c_z_k = self.c_z_k(f_z)
+        r_z_k = self.r_z_k(f_z)
+        return f_z, r_z_k, c_z_k
+
+
+class SiamFCppForward(nn.Module):
+    def __init__(self, model):
+        super(SiamFCppForward, self).__init__()
+
+        # build backbone
+        self.basemodel = model.basemodel
+
+        self.c_x = model.c_x
+        self.r_x = model.r_x
+
+        self.conv_reg_corr = nn.Conv2d(256, 256, 4, groups=256, bias=False)
+        self.conv_cls_corr = nn.Conv2d(256, 256, 4, groups=256, bias=False)
+
+        self.head = model.head
+
+    def forward(self, x):
+
+        # backbone feature
+        f_x = self.basemodel(x)
+        # feature adjustment
+        c_x = self.c_x(f_x)
+        r_x = self.r_x(f_x)
+
+        # feature matching
+        r_out = self.conv_reg_corr(r_x)
+        c_out = self.conv_cls_corr(c_x)
+
+        # head
+        fcos_cls_score_final, fcos_ctr_score_final, fcos_bbox_final, corr_fea = self.head(
+            c_out, r_out, x.size(-1))
+
+        # apply sigmoid
+        fcos_cls_prob_final = torch.sigmoid(fcos_cls_score_final)
+        fcos_ctr_prob_final = torch.sigmoid(fcos_ctr_score_final)
+
+        # apply centerness correction
+        fcos_score_final = fcos_cls_prob_final * fcos_ctr_prob_final    
+
+        delta0 = (fcos_bbox_final[:, :, 0] + fcos_bbox_final[:, :, 2]) / 2
+        delta1 = (fcos_bbox_final[:, :, 1] + fcos_bbox_final[:, :, 3]) / 2
+        delta2 = fcos_bbox_final[:, :, 2] - fcos_bbox_final[:, :, 0] + 1
+        delta3 = fcos_bbox_final[:, :, 3] - fcos_bbox_final[:, :, 1] + 1
+
+        return delta0, delta1, delta2, delta3, fcos_score_final
+        # return fcos_score_final, fcos_bbox_final #, fcos_cls_prob_final, fcos_ctr_prob_final
