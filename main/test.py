@@ -32,7 +32,7 @@ def build_siamfcpp_tester(task_cfg):
 
     temp_model = SiamFCppTemplateMaker(model).cuda().eval()
 
-    dummy_input = torch.randn(1, 3, 127, 127, device="cuda")
+    dummy_input = torch.randn(1, 127, 127, 3, device="cuda")
     input_names  = [ "template_maker_input" ]
     output_names = [ "template_maker_kernel_output", "template_maker_reg_output", "template_maker_cls_output" ]
 
@@ -42,7 +42,7 @@ def build_siamfcpp_tester(task_cfg):
 
     
 
-    dummy_input = torch.randn(1, 3, 303, 303, device="cuda")
+    dummy_input = torch.randn(1, 303, 303, 3, device="cuda")
     simp_forw_model = SiamFCppForward(model).cuda()
 
     input_names  = [ "forward_input" ]

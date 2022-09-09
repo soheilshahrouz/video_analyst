@@ -263,7 +263,8 @@ class SiamFCppTemplateMaker(nn.Module):
 
     def forward(self, x):
 
-        f_z = self.basemodel(x)
+        x_perm = x.permute((0, 3, 1, 2))
+        f_z = self.basemodel(x_perm)
         # template as kernel
         c_z_k = self.c_z_k(f_z)
         r_z_k = self.r_z_k(f_z)
@@ -287,8 +288,10 @@ class SiamFCppForward(nn.Module):
 
     def forward(self, x):
 
+
+        x_perm = x.permute((0, 3, 1, 2))
         # backbone feature
-        f_x = self.basemodel(x)
+        f_x = self.basemodel(x_perm)
         # feature adjustment
         c_x = self.c_x(f_x)
         r_x = self.r_x(f_x)
@@ -299,7 +302,7 @@ class SiamFCppForward(nn.Module):
 
         # head
         fcos_cls_score_final, fcos_ctr_score_final, fcos_bbox_final, corr_fea = self.head(
-            c_out, r_out, x.size(-1))
+            c_out, r_out, x_perm.size(-1))
 
         # apply sigmoid
         fcos_cls_prob_final = torch.sigmoid(fcos_cls_score_final)
