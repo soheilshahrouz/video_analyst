@@ -43,12 +43,14 @@ def build_siamfcpp_tester(task_cfg):
     
 
     dummy_input = torch.randn(1, 303, 303, 3, device="cuda")
+    dummy_reg   = torch.randn(1, 256,   4, 4, device="cuda")
+    dummy_cls   = torch.randn(1, 256,   4, 4, device="cuda")
     simp_forw_model = SiamFCppForward(model).cuda()
 
-    input_names  = [ "forward_input" ]
+    input_names  = [ "forward_input, forward_reg, forward_cls" ]
     output_names = [ "forward_delta0_output", "forward_delta1_output", "forward_delta2_output", "forward_delta3_output", "forward_cls_output" ]
 
-    torch.onnx.export(simp_forw_model, dummy_input, "SiamFCpp_Forward.onnx", export_params=True,
+    torch.onnx.export(simp_forw_model, (dummy_input, dummy_reg, dummy_cls), "SiamFCpp_Forward.onnx", export_params=True,
         verbose=True, input_names=input_names, output_names=output_names)
 
 

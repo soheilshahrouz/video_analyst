@@ -2,6 +2,8 @@
 
 from loguru import logger
 
+import torch.nn.functional as F
+
 import torch
 import torch.nn as nn
 
@@ -281,12 +283,12 @@ class SiamFCppForward(nn.Module):
         self.c_x = model.c_x
         self.r_x = model.r_x
 
-        self.conv_reg_corr = nn.Conv2d(256, 256, 4, groups=256, bias=False)
-        self.conv_cls_corr = nn.Conv2d(256, 256, 4, groups=256, bias=False)
+        # self.conv_reg_corr = nn.Conv2d(256, 256, 4, groups=256, bias=False)
+        # self.conv_cls_corr = nn.Conv2d(256, 256, 4, groups=256, bias=False)
 
         self.head = model.head
 
-    def forward(self, x):
+    def forward(self, x, z_reg, z_cls):
 
 
         x_perm = x.permute((0, 3, 1, 2))
@@ -296,9 +298,21 @@ class SiamFCppForward(nn.Module):
         c_x = self.c_x(f_x)
         r_x = self.r_x(f_x)
 
-        # feature matching
-        r_out = self.conv_reg_corr(r_x)
-        c_out = self.conv_cls_corr(c_x)
+        c_x = F.unfold(c_x.reshape(256, 1, 26, 26), (4, 4))
+        r_x = F.unfold(r_x.reshape(256, 1, 26, 26), (4, 4))
+
+        c_x = torch.permute(c_x, (2, 0, 1))
+        r_x = torch.permute(r_x, (2, 0, 1))
+
+        z_reg = z_reg.reshape(256, 16)
+        z_cls = z_cls.reshape(256, 16)
+
+        r_out = torch.mul(r_x, z_reg).sum(2).permute((1, 0)).reshape(1, 256, 23, 23)
+        c_out = torch.mul(c_x, z_cls).sum(2).permute((1, 0)).reshape(1, 256, 23, 23)
+
+        # # feature matching
+        # r_out = self.conv_reg_corr(r_x)
+        # c_out = self.conv_cls_corr(c_x)
 
         # head
         fcos_cls_score_final, fcos_ctr_score_final, fcos_bbox_final, corr_fea = self.head(
